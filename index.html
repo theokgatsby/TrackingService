@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bot Session Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #0f0f23;
+      display: flex;
+      min-height: 100vh;
+      color: #e0e0e0;
+    }
+
+    .sidebar {
+      width: 280px;
+      background: #1a1a2e;
+      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      padding: 2rem 1.5rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .sidebar-header h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .sidebar-header p {
+      font-size: 0.875rem;
+      opacity: 0.9;
+    }
+
+    .bot-list {
+      flex: 1;
+      padding: 1rem 0;
+    }
+
+    .bot-item {
+      padding: 1rem 1.5rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      border-left: 3px solid transparent;
+    }
+
+    .bot-item:hover {
+      background: #252540;
+    }
+
+    .bot-item.active {
+      background: #2a2a4a;
+      border-left-color: #667eea;
+    }
+
+    .bot-item.home {
+      font-weight: 600;
+      color: #667eea;
+    }
+
+    .bot-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+
+    .bot-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .bot-name {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bot-category {
+      font-size: 0.75rem;
+      color: #a0a0a0;
+    }
+
+    .main-content {
+      flex: 1;
+      margin-left: 280px;
+      padding: 2rem;
+    }
+
+    .page-header {
+      background: #1a1a2e;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      margin-bottom: 2rem;
+    }
+
+    .page-header h2 {
+      color: #e0e0e0;
+      margin-bottom: 0.5rem;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: #1a1a2e;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #8b9cff;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      color: #a0a0a0;
+    }
+
+    .chart-container {
+      background: #1a1a2e;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      margin-bottom: 2rem;
+    }
+
+    .chart-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: #e0e0e0;
+    }
+
+    canvas {
+      max-height: 300px;
+    }
+
+    .sessions-table {
+      background: #1a1a2e;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead {
+      background: #252540;
+    }
+
+    th {
+      padding: 1rem;
+      text-align: left;
+      font-weight: 600;
+      color: #a0a0a0;
+      border-bottom: 2px solid #2a2a4a;
+    }
+
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid #252540;
+    }
+
+    tr:hover {
+      background: #252540;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .status-active {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-stopped {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .payment {
+      font-weight: 600;
+      color: #28a745;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: #a0a0a0;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="sidebar">
+    <div class="sidebar-header active">
+      <h1>Bot Dashboard</h1>
+    </div>
+    <div class="bot-list" id="botList">
+      <div class="bot-item home active" onclick="showHome()">
+        <div class="bot-info">
+          <div class="bot-name">Home</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div id="homeView" style="display: block;">
+      <div class="page-header">
+        <h2>Overview - Last 2 Weeks</h2>
+        <p style="color: #666; margin-top: 0.5rem;">All bots combined</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="totalHours2weeks">0.0h</div>
+          <div class="stat-label">Hours (2 weeks)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="totalSessions2weeks">0</div>
+          <div class="stat-label">Sessions (2 weeks)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="totalEarnings2weeks">$0.00</div>
+          <div class="stat-label">Earnings (2 weeks)</div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Hours Per Day</div>
+        <canvas id="hoursChart"></canvas>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Sessions Per Day</div>
+        <canvas id="sessionsChart"></canvas>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Earnings Per Day</div>
+        <canvas id="earningsChart"></canvas>
+      </div>
+    </div>
+
+    <div id="botView" style="display: none;">
+      <div class="page-header">
+        <h2 id="botViewTitle">Bot Name</h2>
+        <p style="color: #666; margin-top: 0.5rem;" id="botViewCategory">Category</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="botHours2weeks">0.0h</div>
+          <div class="stat-label">Hours (2 weeks)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="botSessions2weeks">0</div>
+          <div class="stat-label">Sessions (2 weeks)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="botEarnings2weeks">$0.00</div>
+          <div class="stat-label">Earnings (2 weeks)</div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Hours Per Day</div>
+        <canvas id="botHoursChart"></canvas>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Sessions Per Day</div>
+        <canvas id="botSessionsChart"></canvas>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Earnings Per Day</div>
+        <canvas id="botEarningsChart"></canvas>
+      </div>
+
+      <div class="sessions-table">
+        <div style="padding: 1.5rem; border-bottom: 2px solid #2a2a4a;">
+          <h3 style="color: #e0e0e0;">Session History</h3>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Duration</th>
+              <th>Started</th>
+              <th>Stopped</th>
+              <th>Payment</th>
+            </tr>
+          </thead>
+          <tbody id="botSessionsBody">
+            <tr>
+              <td colspan="5" class="loading">Select a bot to view sessions</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <script>
+    const API_URL = 'http://localhost:8080/sessions';
+    let allSessions = [];
+    let hoursChart, sessionsChart, earningsChart;
+    let botHoursChart, botSessionsChart, botEarningsChart;
+    let currentBot = null;
+
+    async function loadSessions() {
+      try {
+        const response = await fetch(API_URL);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        allSessions = await response.json();
+        updateBotList();
+
+        if (currentBot === null) {
+          renderHomeStats();
+        } else {
+          showBot(currentBot);
+        }
+      } catch (error) {
+        console.error('Failed to load sessions:', error);
+      }
+    }
+
+    function updateBotList() {
+      const botMap = new Map();
+      allSessions.forEach(session => {
+        if (!botMap.has(session.title)) {
+          botMap.set(session.title, {
+            name: session.title,
+            category: session.category,
+            sessions: []
+          });
+        }
+        botMap.get(session.title).sessions.push(session);
+      });
+
+      const botListHTML = Array.from(botMap.values()).map(bot => {
+        return `
+                    <div class="bot-item" onclick="showBot('${bot.name}')">
+                        <div class="bot-info">
+                            <div class="bot-name">${bot.name}</div>
+                        </div>
+                    </div>
+                `;
+      }).join('');
+
+      document.getElementById('botList').innerHTML = `
+                <div class="bot-item home ${currentBot === null ? 'active' : ''}" onclick="showHome()">
+                    <div class="bot-info">
+                        <div class="bot-name">Home</div>
+                    </div>
+                </div>
+                ${botListHTML}
+            `;
+    }
+
+    function showHome() {
+      currentBot = null;
+      document.getElementById('homeView').style.display = 'block';
+      document.getElementById('botView').style.display = 'none';
+      updateBotList();
+      renderHomeStats();
+    }
+
+    function showBot(botName) {
+      currentBot = botName;
+      document.getElementById('homeView').style.display = 'none';
+      document.getElementById('botView').style.display = 'block';
+      updateBotList();
+      renderBotStats(botName);
+    }
+
+    function renderHomeStats() {
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+      const recentSessions = allSessions.filter(s =>
+        new Date(s.created_at) >= twoWeeksAgo
+      );
+
+      let totalSeconds = 0;
+      recentSessions.forEach(session => {
+        if (session.duration && session.deleted_at) {
+          totalSeconds += parseFloat(session.duration);
+        }
+      });
+
+      const totalHours = (totalSeconds / 3600).toFixed(1);
+      const totalEarnings = recentSessions.reduce((sum, s) => sum + s.payment, 0);
+
+      document.getElementById('totalHours2weeks').textContent = totalHours + 'h';
+      document.getElementById('totalSessions2weeks').textContent = recentSessions.length;
+      document.getElementById('totalEarnings2weeks').textContent = '$' + totalEarnings.toFixed(2);
+
+      renderCharts(recentSessions);
+    }
+
+    function renderCharts(sessions) {
+      const dailyData = {};
+
+      for (let i = 13; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        dailyData[dateStr] = { hours: 0, sessions: 0, earnings: 0 };
+      }
+
+      sessions.forEach(session => {
+        if (session.deleted_at) {
+          const dateStr = new Date(session.created_at).toISOString().split('T')[0];
+          if (dailyData[dateStr]) {
+            dailyData[dateStr].sessions++;
+            dailyData[dateStr].earnings += session.payment;
+            if (session.duration) {
+              dailyData[dateStr].hours += parseFloat(session.duration) / 3600;
+            }
+          }
+        }
+      });
+
+      const labels = Object.keys(dailyData).map(d => {
+        const date = new Date(d);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      });
+      const hoursData = Object.values(dailyData).map(d => d.hours.toFixed(2));
+      const sessionsData = Object.values(dailyData).map(d => d.sessions);
+      const earningsData = Object.values(dailyData).map(d => d.earnings.toFixed(2));
+
+      setTimeout(() => {
+        if (hoursChart) hoursChart.destroy();
+        if (sessionsChart) sessionsChart.destroy();
+        if (earningsChart) earningsChart.destroy();
+
+        const hoursCtx = document.getElementById('hoursChart').getContext('2d');
+        hoursChart = new Chart(hoursCtx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Hours',
+              data: hoursData,
+              backgroundColor: 'rgba(139, 156, 255, 0.8)',
+              borderColor: 'rgba(139, 156, 255, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { labels: { color: '#e0e0e0' } }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { color: '#a0a0a0' },
+                grid: { color: '#2a2a4a' }
+              },
+              x: {
+                ticks: { color: '#a0a0a0' },
+                grid: { color: '#2a2a4a' }
+              }
+            }
+          }
+        });
+
+        const sessionsCtx = document.getElementById('sessionsChart').getContext('2d');
+        sessionsChart = new Chart(sessionsCtx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Sessions',
+              data: sessionsData,
+              backgroundColor: 'rgba(118, 75, 162, 0.3)',
+              borderColor: 'rgba(139, 156, 255, 1)',
+              borderWidth: 2,
+              tension: 0.4,
+              fill: true
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { labels: { color: '#e0e0e0' } }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { stepSize: 1, color: '#a0a0a0' },
+                grid: { color: '#2a2a4a' }
+              },
+              x: {
+                ticks: { color: '#a0a0a0' },
+                grid: { color: '#2a2a4a' }
+              }
+            }
+          }
+        });
+
+        const earningsCtx = document.getElementById('earningsChart').getContext('2d');
+        earningsChart = new Chart(earningsCtx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Earnings ($)',
+              data: earningsData,
+              backgroundColor: 'rgba(40, 167, 69, 0.8)',
+              borderColor: 'rgba(40, 167, 69, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { labels: { color: '#e0e0e0' } }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: '#a0a0a0',
+                  callback: function (value) {
+                    return '$' + value;
+                  }
+                },
+                grid: { color: '#2a2a4a' }
+              },
+              x: {
+                ticks: { color: '#a0a0a0' },
+                grid: { color: '#2a2a4a' }
+              }
+            }
+          }
+        });
+      }, 100);
+    }
+
+    function renderBotStats(botName) {
+      const botSessions = allSessions
+        .filter(s => s.title === botName)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+      const recentBotSessions = botSessions.filter(s => new Date(s.created_at) >= twoWeeksAgo);
+
+      let totalSeconds = 0;
+      recentBotSessions.forEach(session => {
+        if (session.duration && session.deleted_at) {
+          totalSeconds += parseFloat(session.duration);
+        }
+      });
+
+      const totalHours = (totalSeconds / 3600).toFixed(1);
+      const totalEarnings = recentBotSessions.reduce((sum, s) => sum + s.payment, 0);
+
+      const botCategory = botSessions[0]?.category || 'Unknown';
+      document.getElementById('botViewTitle').textContent = botName;
+      document.getElementById('botViewCategory').textContent = botCategory;
+      document.getElementById('botHours2weeks').textContent = totalHours + 'h';
+      document.getElementById('botEarnings2weeks').textContent = '$' + totalEarnings.toFixed(2);
+      document.getElementById('botSessions2weeks').textContent = recentBotSessions.length;
+
+      renderBotCharts(recentBotSessions);
+
+      const tbody = document.getElementById('botSessionsBody');
+      tbody.innerHTML = botSessions.map(session => {
+        const isActive = !session.deleted_at;
+        const startedAt = new Date(session.created_at);
+        const stoppedAt = session.deleted_at ? new Date(session.deleted_at) : null;
+
+        return `
+                    <tr>
+                        <td>
+                            <span class="status-badge ${isActive ? 'status-active' : 'status-stopped'}">
+                                ${isActive ? 'Active' : 'Stopped'}
+                            </span>
+                        </td>
+                        <td>${session.duration || 'In progress'}</td>
+                        <td>${formatDateTime(startedAt)}</td>
+                        <td>${stoppedAt ? formatDateTime(stoppedAt) : '-'}</td>
+                        <td class="payment">$${session.payment.toFixed(2)}</td>
+                    </tr>
+                `;
+      }).join('');
+    }
+
+    function renderBotCharts(sessions) {
+      const dailyData = {};
+
+      for (let i = 13; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        dailyData[dateStr] = { hours: 0, sessions: 0, earnings: 0 };
+      }
+
+      sessions.forEach(session => {
+        if (session.deleted_at) {
+          const dateStr = new Date(session.created_at).toISOString().split('T')[0];
+          if (dailyData[dateStr]) {
+            dailyData[dateStr].sessions++;
+            dailyData[dateStr].earnings += session.payment;
+            if (session.duration) {
+              dailyData[dateStr].hours += parseFloat(session.duration) / 3600;
+            }
+          }
+        }
+      });
+
+      const labels = Object.keys(dailyData).map(d => {
+        const date = new Date(d);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      });
+      const hoursData = Object.values(dailyData).map(d => d.hours.toFixed(2));
+      const sessionsData = Object.values(dailyData).map(d => d.sessions);
+      const earningsData = Object.values(dailyData).map(d => d.earnings.toFixed(2));
+
+      setTimeout(() => {
+        if (botHoursChart) botHoursChart.destroy();
+        if (botSessionsChart) botSessionsChart.destroy();
+        if (botEarningsChart) botEarningsChart.destroy();
+
+        const hoursCtx = document.getElementById('botHoursChart').getContext('2d');
+        botHoursChart = new Chart(hoursCtx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Hours',
+              data: hoursData,
+              backgroundColor: 'rgba(139, 156, 255, 0.8)',
+              borderColor: 'rgba(139, 156, 255, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { labels: { color: '#e0e0e0' } }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { color: '#a0a0a0' },
+                grid: { color: '#2a2a4a' }
+              },
+              x: {
+                ticks: { color: '#a0a0a0' },
+                grid: { color: '#2a2a4a' }
+              }
+            }
+          }
+        });
+
+        const sessionsCtx = document.getElementById('botSessionsChart').getContext('2d');
+        botSessionsChart = new Chart(sessionsCtx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Sessions',
+              data: sessionsData,
+              backgroundColor: 'rgba(118, 75, 162, 0.3)',
+              borderColor: 'rgba(139, 156, 255, 1)',
+              borderWidth: 2,
+              tension: 0.4,
+              fill: true
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { labels: { color: '#e0e0e0' } }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { stepSize: 1, color: '#a0a0a0' },
+                grid: { color: '#2a2a4a' }
+              },
+              x: {
+                ticks: { color: '#a0a0a0' },
+                grid: { color: '#2a2a4a' }
+              }
+            }
+          }
+        });
+
+        const earningsCtx = document.getElementById('botEarningsChart').getContext('2d');
+        botEarningsChart = new Chart(earningsCtx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Earnings ($)',
+              data: earningsData,
+              backgroundColor: 'rgba(40, 167, 69, 0.8)',
+              borderColor: 'rgba(40, 167, 69, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { labels: { color: '#e0e0e0' } }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: '#a0a0a0',
+                  callback: function (value) {
+                    return '$' + value;
+                  }
+                },
+                grid: { color: '#2a2a4a' }
+              },
+              x: {
+                ticks: { color: '#a0a0a0' },
+                grid: { color: '#2a2a4a' }
+              }
+            }
+          }
+        });
+      }, 100);
+    }
+
+    function formatDateTime(date) {
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    loadSessions();
+  </script>
+</body>
+
+</html>
