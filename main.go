@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"math"
 	"net/http"
 	"time"
 
@@ -22,47 +21,27 @@ type Session struct {
 type SessionResponse struct {
 	ID        uint       `json:"id"`
 	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 	Title     string     `json:"title"`
 	Category  string     `json:"category"`
 	Payment   float64    `json:"payment"`
-	Duration  string     `json:"duration"`
+	Duration  string     `json:"duration,omitempty"`
 }
 
 var db *gorm.DB
 
 func main() {
-	if err := initDB(); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
-	}
-
-	router := setupRouter()
-	
-	log.Println("Starting server on :8080")
-	if err := router.Run(":8080"); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
-}
-
-func initDB() error {
 	var err error
 	db, err = gorm.Open(sqlite.Open("sessions.db"), &gorm.Config{})
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
+		log.Fatal("Failed to connect to database:", err)
 	}
 
-	if err := db.AutoMigrate(&Session{}); err != nil {
-		return fmt.Errorf("failed to run migrations: %w", err)
-	}
+	db.AutoMigrate(&Session{})
 
-	return nil
-}
-
-func setupRouter() *gin.Engine {
 	router := gin.Default()
 
-	// Add CORS middleware
+	// CORS
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
@@ -75,128 +54,83 @@ func setupRouter() *gin.Engine {
 	})
 
 	router.GET("/sessions", getSessions)
-	router.GET("/sessions/:id", getSessionByID)
-	router.POST("/sessions", postSessions)
+	router.POST("/sessions", createSession)
 	router.PATCH("/sessions/:id/stop", stopSession)
 
-	return router
-}
-
-func toResponse(s Session) SessionResponse {
-	var end *time.Time
-	if s.DeletedAt.Valid {
-		end = &s.DeletedAt.Time
-	}
-
-	payment := calculatePayment(s.Rate, s.CreatedAt, end)
-
-	resp := SessionResponse{
-		ID:        s.ID,
-		CreatedAt: s.CreatedAt,
-		UpdatedAt: s.UpdatedAt,
-		Title:     s.Title,
-		Category:  s.Category,
-		Payment:   payment,
-	}
-
-	if end != nil {
-		duration := end.Sub(s.CreatedAt)
-		resp.DeletedAt = end
-		resp.Duration = fmt.Sprintf("%.0fs", duration.Seconds())
-	}
-
-	return resp
+	log.Println("Server starting on :8080")
+	router.Run(":8080")
 }
 
 func getSessions(c *gin.Context) {
 	var sessions []Session
-	if err := db.Unscoped().Find(&sessions).Error; err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve sessions"})
-		return
-	}
+	db.Unscoped().Find(&sessions)
 
 	response := make([]SessionResponse, len(sessions))
 	for i, s := range sessions {
 		response[i] = toResponse(s)
 	}
 
-	c.IndentedJSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, response)
 }
 
-func postSessions(c *gin.Context) {
-	var newSession Session
-	if err := c.ShouldBindJSON(&newSession); err != nil {
-		c.IndentedJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+func createSession(c *gin.Context) {
+	var session Session
+	if err := c.BindJSON(&session); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := db.Create(&newSession).Error; err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "failed to create session"})
-		return
-	}
+	db.Create(&session)
+	fmt.Printf("Created session: %s\n", session.Title)
 
-	c.IndentedJSON(http.StatusCreated, toResponse(newSession))
-}
-
-func getSessionByID(c *gin.Context) {
-	id := c.Param("id")
-	var s Session
-
-	if err := db.Unscoped().First(&s, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "session not found"})
-		} else {
-			c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve session"})
-		}
-		return
-	}
-
-	c.IndentedJSON(http.StatusOK, toResponse(s))
+	c.JSON(http.StatusCreated, toResponse(session))
 }
 
 func stopSession(c *gin.Context) {
 	id := c.Param("id")
-	var s Session
+	var session Session
 
-	if err := db.Unscoped().First(&s, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.IndentedJSON(http.StatusNotFound, gin.H{"error": "session not found"})
-		} else {
-			c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve session"})
-		}
+	if err := db.Unscoped().First(&session, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return
 	}
 
-	if s.DeletedAt.Valid {
-		c.IndentedJSON(http.StatusOK, toResponse(s))
+	if session.DeletedAt.Valid {
+		c.JSON(http.StatusOK, toResponse(session))
 		return
 	}
 
-	now := time.Now()
-	if err := db.Model(&s).Update("deleted_at", now).Error; err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "failed to stop session"})
-		return
-	}
+	db.Model(&session).Update("deleted_at", time.Now())
+	db.Unscoped().First(&session, id)
 
-	if err := db.Unscoped().First(&s, id).Error; err != nil {
-		c.IndentedJSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve updated session"})
-		return
-	}
-
-	c.IndentedJSON(http.StatusOK, toResponse(s))
+	fmt.Printf("Stopped session: %s\n", session.Title)
+	c.JSON(http.StatusOK, toResponse(session))
 }
 
-func calculatePayment(rate float64, start time.Time, end *time.Time) float64 {
-	var elapsed time.Duration
+func toResponse(s Session) SessionResponse {
+	var payment float64
+	var duration string
+	var deletedAt *time.Time
 
-	if end != nil {
-		elapsed = end.Sub(start)
+	if s.DeletedAt.Valid {
+		elapsed := s.DeletedAt.Time.Sub(s.CreatedAt)
+		hours := int(elapsed.Hours()) + 1
+		payment = float64(hours) * s.Rate
+		duration = fmt.Sprintf("%.0fs", elapsed.Seconds())
+		deletedAt = &s.DeletedAt.Time
 	} else {
-		elapsed = time.Since(start)
+		elapsed := time.Since(s.CreatedAt)
+		hours := int(elapsed.Hours()) + 1
+		payment = float64(hours) * s.Rate
 	}
 
-	hours := elapsed.Hours()
-	billableHours := int(math.Ceil(hours))
-
-	return (float64(billableHours) + 1) * rate
+	return SessionResponse{
+		ID:        s.ID,
+		CreatedAt: s.CreatedAt,
+		DeletedAt: deletedAt,
+		Title:     s.Title,
+		Category:  s.Category,
+		Payment:   payment,
+		Duration:  duration,
+	}
 }
