@@ -53,6 +53,7 @@ func main() {
 		c.Next()
 	})
 
+	router.GET("/", serveDashboard)
 	router.GET("/sessions", getSessions)
 	router.POST("/sessions", createSession)
 	router.PATCH("/sessions/:id/stop", stopSession)
@@ -133,4 +134,9 @@ func toResponse(s Session) SessionResponse {
 		Payment:   payment,
 		Duration:  duration,
 	}
+}
+
+func serveDashboard(c *gin.Context) {
+	c.Header("Content-Type", "text/html")
+	c.File("index.html")
 }
